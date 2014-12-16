@@ -33,6 +33,7 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
 
 	// Media Player
 	private  MediaPlayer mp;
+    private AudioFocusHelper mAudioFocusHelper;
 	private boolean mInitialized = false;
 	private long mPosOverride = -1L;
 	// Handler to update UI timer, progress bar etc,.
@@ -58,6 +59,7 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
 
 		// Media Player
 		mp = new MediaPlayer();
+        mAudioFocusHelper = new AudioFocusHelper(mp);
 		utils = new Utilities();
 		
 		// Listeners
@@ -80,7 +82,8 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
 				// check for already playing
 				if(!mInitialized){
 					    Log.v(TAG, " MediaPlayer is started first time" );
-						playVoiceMail2();
+						//playVoiceMail2();
+                        playVoiceMail3();
 					    mInitialized = true;
 				}
 				else{
@@ -106,8 +109,7 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
 		
 	}
 	
-	
-	public void  playVoiceMail(){
+		public void  playVoiceMail(){
 		// AudioManager
 		AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
@@ -175,7 +177,109 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
 			}
             mp.start();
     }
+    public class AudioFocusHelper implements AudioManager.OnAudioFocusChangeListener {
+        MediaPlayer mMediaPlayer ;
+        AudioManager mAM;
+        public AudioFocusHelper(MediaPlayer mp) {
+            mAM = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            mMediaPlayer = mp;
+        }
+        public boolean requestFocus() {
+            return AudioManager.AUDIOFOCUS_REQUEST_GRANTED ==
+                    mAM.requestAudioFocus(this, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+        }
+        public boolean abandonFocus() {
+            return AudioManager.AUDIOFOCUS_REQUEST_GRANTED == mAM.abandonAudioFocus(this);
+        }
+        public void onAudioFocusChange(int focusChange) {
 
+            switch (focusChange) {
+            case AudioManager.AUDIOFOCUS_GAIN:            // resume playback
+                Log.v(TAG, " == AUDIOFOCUS_GAIN == ");
+                if (mMediaPlayer == null) {
+                    Toast.makeText(context, "Playback from scratch by focuss gain ", Toast.LENGTH_SHORT).show();
+                    initMediaPlayer();
+                }
+                else if (!mMediaPlayer.isPlaying()) {
+                    Toast.makeText(context, "Playback resume by focuss gain ", Toast.LENGTH_SHORT).show();
+                    mMediaPlayer.start();
+                }
+                //mMediaPlayer.setVolume(1.0f, 1.0f);
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS:            // Lost focus for an unbounded amount of time: stop playback and release media player
+                Log.v(TAG, " == AUDIOFOCUS_LOSS == ");
+                if (mMediaPlayer.isPlaying()) {
+                    Toast.makeText(context, "Playback interrupted by focus loss", Toast.LENGTH_SHORT).show();
+
+//                            mMediaPlayer.stop();
+                    mMediaPlayer.pause();
+                    btnPlay.setImageResource(R.drawable.btn_play);
+                }
+//                        mMediaPlayer.release();
+//                        mMediaPlayer = null;
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:            // Lost focus for a short time, but we have to stop
+                Log.v(TAG, " == AUDIOFOCUS_LOSS_TRANSIENT == ");
+                // playback. We don't release the media player because playback
+                // is likely to resume
+                if (mMediaPlayer.isPlaying()) {
+                    Toast.makeText(context, "Playback paused by focus loss (transient)", Toast.LENGTH_SHORT).show();
+                    mMediaPlayer.pause();
+                }
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:            // Lost focus for a short time, but it's ok to keep playing
+                Log.v(TAG, " == AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK == ");
+                // at an attenuated level
+                if (mMediaPlayer.isPlaying())  {
+                    Toast.makeText(context, "Playback paused by focus loss (duck)", Toast.LENGTH_SHORT).show();
+                    mMediaPlayer.pause();
+                    //mMediaPlayer.setVolume(0.1f, 0.1f);
+                }
+                break;
+            }
+        }
+    }
+
+    public void  playVoiceMail3(){
+        String filePath = "/storage/emulated/0/hello.amr";
+        boolean result = mAudioFocusHelper.requestFocus();
+        if (result) {
+            // Start playback.
+            try {
+                mp.reset();
+                mp.setAudioStreamType(AudioManager.STREAM_VOICE_CALL);
+                //mp.setAudioStreamType(am.STREAM_MUSIC);
+                mp.setDataSource(filePath);
+                mp.prepare();
+                mp.start();
+
+                // Displaying Song title
+                String voiceMailTitle = "Voicemail testing";
+                String songTitle = voiceMailTitle;
+                songTitleLabel.setText(songTitle);
+
+                // Changing Button Image to pause image
+                btnPlay.setImageResource(R.drawable.btn_pause);
+
+                // set Progress bar values
+                songProgressBar.setProgress(0);
+                songProgressBar.setMax(100);
+
+                // Updating progress bar
+                updateProgressBar();
+                //am.abandonAudioFocus(afChangeListener);
+
+            }
+            catch (IllegalArgumentException e) {
+                e.printStackTrace();
+            } catch (IllegalStateException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
 	public void  playVoiceMail2(){
 		// AudioManager
 		AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -194,6 +298,7 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
         	
             OnAudioFocusChangeListener afChangeListener = new OnAudioFocusChangeListener() {
                 private  MediaPlayer mMediaPlayer = mp;
+                AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
                 public void onAudioFocusChange(int focusChange) {
                     switch (focusChange) {        
                     case AudioManager.AUDIOFOCUS_GAIN:            // resume playback           
@@ -216,6 +321,7 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
 //                            mMediaPlayer.stop();     
                             mMediaPlayer.pause();      
 						    btnPlay.setImageResource(R.drawable.btn_play);
+                            //am.abandonAudioFocus(this);
                         }
 //                        mMediaPlayer.release();            
 //                        mMediaPlayer = null;            
@@ -357,10 +463,10 @@ public class VVM_MusicPlayer_Test extends Activity implements OnCompletionListen
 	 * if shuffle is ON play random song
 	 * */
 	@Override
-	public void onCompletion(MediaPlayer arg0) {
+	public void onCompletion(MediaPlayer mPlayer) {
 
-        AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-
+        mAudioFocusHelper.abandonFocus();
+        //boolean result = mAudioFocusHelper.abandonFocus();
 		// check for repeat is ON or OFF
 //		if(isRepeat){
 //			// repeat is on play same song again
